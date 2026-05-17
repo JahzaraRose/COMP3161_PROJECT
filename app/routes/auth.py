@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token
+from app.authz import duplicate_key_error, safe_error
 from app.db import get_db
 import bcrypt
+import os
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -21,6 +23,13 @@ def register():
     role = data["role"]
     if role not in ("admin", "lecturer", "student"):
         return jsonify({"error": "Role must be admin, lecturer or student"}), 400
+    if role == "admin":
+        invite_code = os.getenv("ADMIN_REGISTRATION_CODE")
+        if not invite_code or data.get("admin_registration_code") != invite_code:
+            return jsonify({"error": "Admin registration is not allowed"}), 403
+
+    if len(data["password"]) < 8:
+        return jsonify({"error": "Password must be at least 8 characters long"}), 400
 
     password_hash = bcrypt.hashpw(data["password"].encode(), bcrypt.gensalt()).decode()
 
@@ -63,7 +72,13 @@ def register():
 
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        duplicate_response = duplicate_key_error(e, {
+            "username": "Username already taken",
+            "email": "Email already taken",
+        })
+        if duplicate_response:
+            return duplicate_response
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()

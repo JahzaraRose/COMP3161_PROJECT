@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
+from app.authz import can_access_course, can_access_student_records, duplicate_key_error, forbidden, get_claim_int, safe_error
 from app.db import get_db
-from app.cache import cache_get, cache_set, cache_delete
+from app.cache import cache_delete
 
 courses_bp = Blueprint("courses", __name__)
 
@@ -56,25 +57,41 @@ def create_course():
 
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        duplicate_response = duplicate_key_error(e, {
+            "course_code": "Course code already exists",
+        })
+        if duplicate_response:
+            return duplicate_response
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()
 
 
 # ============================================================
-# GET /api/courses  (all courses)
+# GET /api/courses  (paginated courses)
 # ============================================================
 @courses_bp.route("/courses", methods=["GET"])
 @jwt_required()
 def get_all_courses():
-    cached = cache_get("courses:all")
-    if cached is not None:
-        return jsonify(cached), 200
+    try:
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 20))
+    except (TypeError, ValueError):
+        return jsonify({"error": "page and per_page must be positive integers"}), 400
+
+    if page < 1 or per_page < 1:
+        return jsonify({"error": "page and per_page must be positive integers"}), 400
+
+    offset = (page - 1) * per_page
 
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        cursor.execute("SELECT COUNT(*) AS total FROM course")
+        total = cursor.fetchone()["total"]
+        total_pages = (total + per_page - 1) // per_page
+
         cursor.execute("""
             SELECT c.course_id, c.course_code, c.course_name, c.description,
                    l.lecturer_id, u.first_name, u.last_name
@@ -82,10 +99,47 @@ def get_all_courses():
             LEFT JOIN lecturer l ON c.lecturer_id = l.lecturer_id
             LEFT JOIN user u     ON l.user_id     = u.user_id
             ORDER BY c.course_code
-        """)
+            LIMIT %s OFFSET %s
+        """, (per_page, offset))
         courses = cursor.fetchall()
-        cache_set("courses:all", courses, ttl=120)
-        return jsonify(courses), 200
+        return jsonify({
+            "courses": courses,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total": total,
+                "total_pages": total_pages
+            }
+        }), 200
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ============================================================
+# GET /api/courses/<course_id>  (single course)
+# ============================================================
+@courses_bp.route("/courses/<int:course_id>", methods=["GET"])
+@jwt_required()
+def get_course(course_id):
+    conn   = get_db()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT c.course_id, c.course_code, c.course_name, c.description,
+                   l.lecturer_id, l.department,
+                   u.first_name AS lecturer_first_name,
+                   u.last_name AS lecturer_last_name,
+                   u.email AS lecturer_email
+            FROM course c
+            LEFT JOIN lecturer l ON c.lecturer_id = l.lecturer_id
+            LEFT JOIN user u     ON l.user_id     = u.user_id
+            WHERE c.course_id = %s
+        """, (course_id,))
+        course = cursor.fetchone()
+        if not course:
+            return jsonify({"error": "Course not found"}), 404
+        return jsonify(course), 200
     finally:
         cursor.close()
         conn.close()
@@ -97,17 +151,29 @@ def get_all_courses():
 @courses_bp.route("/courses/student/<int:student_id>", methods=["GET"])
 @jwt_required()
 def get_courses_by_student(student_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
+        if not can_access_student_records(cursor, claims, student_id):
+            return forbidden()
+
+        params = [student_id]
+        lecturer_scope = ""
+        lecturer_id = get_claim_int(claims, "subtype_id")
+        if claims.get("role") == "lecturer":
+            lecturer_scope = " AND c.lecturer_id = %s"
+            params.append(lecturer_id)
+
+        cursor.execute(f"""
             SELECT c.course_id, c.course_code, c.course_name, c.description,
                    e.enrollment_at
             FROM course c
             JOIN enrollment e ON c.course_id = e.course_id
             WHERE e.student_id = %s
+            {lecturer_scope}
             ORDER BY c.course_code
-        """, (student_id,))
+        """, tuple(params))
         courses = cursor.fetchall()
         for c in courses:
             c["enrollment_at"] = str(c["enrollment_at"])
@@ -123,6 +189,12 @@ def get_courses_by_student(student_id):
 @courses_bp.route("/courses/lecturer/<int:lecturer_id>", methods=["GET"])
 @jwt_required()
 def get_courses_by_lecturer(lecturer_id):
+    claims = get_jwt()
+    if claims.get("role") == "lecturer" and get_claim_int(claims, "subtype_id") != lecturer_id:
+        return forbidden()
+    if claims.get("role") not in ("lecturer", "admin"):
+        return forbidden()
+
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -146,11 +218,21 @@ def get_courses_by_lecturer(lecturer_id):
 @courses_bp.route("/courses/<int:course_id>/members", methods=["GET"])
 @jwt_required()
 def get_course_members(course_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Get enrolled students
-        cursor.execute("""
+        if not can_access_course(cursor, claims, course_id):
+            return forbidden()
+
+        student_filter = ""
+        params = [course_id]
+        if claims.get("role") == "student":
+            student_filter = " AND s.student_id = %s"
+            params.append(get_claim_int(claims, "subtype_id"))
+
+        # Get enrolled students. Students only see their own student record.
+        cursor.execute(f"""
             SELECT s.student_id, u.first_name, u.last_name, u.email,
                    s.major, s.year_level, e.enrollment_at,
                    'student' AS member_role
@@ -158,8 +240,9 @@ def get_course_members(course_id):
             JOIN student s ON e.student_id = s.student_id
             JOIN user u    ON s.user_id    = u.user_id
             WHERE e.course_id = %s
+            {student_filter}
             ORDER BY u.last_name, u.first_name
-        """, (course_id,))
+        """, tuple(params))
         students = cursor.fetchall()
         for s in students:
             s["enrollment_at"] = str(s["enrollment_at"])

@@ -5,4 +5,6 @@ mysql-connector-python
 python-dotenv
 bcrypt
 redis
+
+# Production WSGI server used by Railway Procfile/Dockerfile.
 gunicorn

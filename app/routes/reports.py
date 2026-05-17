@@ -104,15 +104,7 @@ def top_10_courses():
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
-            SELECT c.course_id, c.course_code, c.course_name,
-                   COUNT(e.student_id) AS student_count
-            FROM course c
-            JOIN enrollment e ON c.course_id = e.course_id
-            GROUP BY c.course_id, c.course_code, c.course_name
-            ORDER BY student_count DESC
-            LIMIT 10
-        """)
+        cursor.execute("SELECT * FROM view_top_10_enrolled_courses")
         data = cursor.fetchall()
         cache_set("report:top10_courses", data, REPORT_TTL)
         return jsonify(data), 200
@@ -137,18 +129,7 @@ def top_10_students():
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
-            SELECT s.student_id, u.first_name, u.last_name, u.email,
-                   ROUND(AVG((sub.grade / a.max_grade) * 100), 2) AS average_percentage
-            FROM student s
-            JOIN user       u   ON s.user_id         = u.user_id
-            JOIN submission sub ON s.student_id      = sub.student_id
-            JOIN assignment a   ON sub.assignment_id = a.assignment_id
-            WHERE sub.grade IS NOT NULL
-            GROUP BY s.student_id, u.first_name, u.last_name, u.email
-            ORDER BY average_percentage DESC
-            LIMIT 10
-        """)
+        cursor.execute("SELECT * FROM view_top_10_students_avg")
         data = cursor.fetchall()
         cache_set("report:top10_students", data, REPORT_TTL)
         return jsonify(data), 200

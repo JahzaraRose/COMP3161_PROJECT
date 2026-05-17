@@ -1,17 +1,9 @@
 import mysql.connector
 import random
-import os
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
+from app.db import _db_config
 
-load_dotenv()
-
-conn = mysql.connector.connect(
-    host=os.getenv("DB_HOST", "localhost"),
-    user=os.getenv("DB_USER", "root"),
-    password=os.getenv("DB_PASSWORD", ""),
-    database=os.getenv("DB_NAME", "comp3161_project")
-)
+conn = mysql.connector.connect(**_db_config())
 cursor = conn.cursor()
 
 print("Connected to database successfully!")

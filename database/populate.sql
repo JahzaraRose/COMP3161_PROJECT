@@ -170,8 +170,8 @@ CALL insert_courses();
 
 -- ============================================================
 -- STEP 5: ENROLL STUDENTS IN COURSES
---   - First 10 students go into every course (guarantees 10 min)
---   - Remaining students get 3-6 courses each
+--   - Every student gets 3-6 courses
+--   - Deterministic spread across 200 courses gives every course far more than 10 members
 -- ============================================================
 DROP PROCEDURE IF EXISTS insert_enrollments;
 DELIMITER //
@@ -184,21 +184,6 @@ BEGIN
     DECLARE sid INT;
     DECLARE cid INT;
 
-    -- Guarantee every course has at least 10 students
-    WHILE i <= 10 DO
-        SELECT student_id INTO sid FROM student ORDER BY student_id LIMIT 1 OFFSET (i - 1);
-        SET j = 1;
-        WHILE j <= 200 DO
-            SELECT course_id INTO cid FROM course ORDER BY course_id LIMIT 1 OFFSET (j - 1);
-            INSERT IGNORE INTO enrollment (student_id, course_id, enrollment_at)
-            VALUES (sid, cid, NOW() - INTERVAL FLOOR(RAND() * 365) DAY);
-            SET j = j + 1;
-        END WHILE;
-        SET i = i + 1;
-    END WHILE;
-
-    -- Enroll remaining students in 3-6 courses each
-    SET i = 11;
     WHILE i <= 100000 DO
         SELECT student_id INTO sid FROM student ORDER BY student_id LIMIT 1 OFFSET (i - 1);
         SET num_courses = 3 + (i % 4);  -- 3 to 6 courses

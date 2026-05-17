@@ -1,5 +1,13 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
+from app.authz import (
+    can_access_course,
+    can_access_forum,
+    can_access_thread,
+    forbidden,
+    parent_reply_matches_thread,
+    safe_error,
+)
 from app.db import get_db
 
 forums_bp = Blueprint("forums", __name__)
@@ -11,9 +19,13 @@ forums_bp = Blueprint("forums", __name__)
 @forums_bp.route("/courses/<int:course_id>/forums", methods=["GET"])
 @jwt_required()
 def get_forums(course_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_course(cursor, claims, course_id):
+            return forbidden()
+
         cursor.execute("""
             SELECT forum_id, forum_title, created_at
             FROM discussion_forum
@@ -49,6 +61,9 @@ def create_forum(course_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_course(cursor, claims, course_id):
+            return forbidden()
+
         cursor.execute("""
             INSERT INTO discussion_forum (course_id, created_by, forum_title)
             VALUES (%s, %s, %s)
@@ -57,7 +72,7 @@ def create_forum(course_id):
         return jsonify({"message": "Forum created", "forum_id": cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()
@@ -69,9 +84,13 @@ def create_forum(course_id):
 @forums_bp.route("/forums/<int:forum_id>/threads", methods=["GET"])
 @jwt_required()
 def get_threads(forum_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_forum(cursor, claims, forum_id):
+            return forbidden()
+
         cursor.execute("""
             SELECT dt.thread_id, dt.thread_title, dt.starting_post, dt.created_at,
                    u.first_name, u.last_name
@@ -107,6 +126,9 @@ def create_thread(forum_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_forum(cursor, claims, forum_id):
+            return forbidden()
+
         cursor.execute("""
             INSERT INTO discussion_thread (forum_id, user_id, thread_title, starting_post)
             VALUES (%s, %s, %s, %s)
@@ -115,7 +137,7 @@ def create_thread(forum_id):
         return jsonify({"message": "Thread created", "thread_id": cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()
@@ -127,9 +149,13 @@ def create_thread(forum_id):
 @forums_bp.route("/threads/<int:thread_id>/replies", methods=["GET"])
 @jwt_required()
 def get_replies(thread_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_thread(cursor, claims, thread_id):
+            return forbidden()
+
         cursor.execute("""
             SELECT r.reply_id, r.parent_reply_id, r.reply_text, r.created_at,
                    u.first_name, u.last_name
@@ -163,6 +189,11 @@ def create_reply(thread_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_thread(cursor, claims, thread_id):
+            return forbidden()
+        if not parent_reply_matches_thread(cursor, data.get("parent_reply_id"), thread_id):
+            return jsonify({"error": "parent_reply_id must belong to this thread"}), 400
+
         cursor.execute("""
             INSERT INTO reply (thread_id, user_id, parent_reply_id, reply_text)
             VALUES (%s, %s, %s, %s)
@@ -176,7 +207,7 @@ def create_reply(thread_id):
         return jsonify({"message": "Reply posted", "reply_id": cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()

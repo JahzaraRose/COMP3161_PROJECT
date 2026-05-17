@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
+from app.authz import duplicate_key_error, safe_error
 from app.db import get_db
 
 enrollments_bp = Blueprint("enrollments", __name__)
@@ -50,7 +51,12 @@ def enroll_in_course(course_id):
 
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        duplicate_response = duplicate_key_error(e, {
+            "uq_enrollment": "Student already enrolled in this course",
+        })
+        if duplicate_response:
+            return duplicate_response
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()
@@ -90,7 +96,7 @@ def assign_lecturer(course_id):
 
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()

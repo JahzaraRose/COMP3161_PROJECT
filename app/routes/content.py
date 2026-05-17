@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
+from app.authz import can_access_course, can_manage_section, forbidden, get_claim_int, safe_error
 from app.db import get_db
 
 content_bp = Blueprint("content", __name__)
@@ -11,9 +12,13 @@ content_bp = Blueprint("content", __name__)
 @content_bp.route("/courses/<int:course_id>/content", methods=["GET"])
 @jwt_required()
 def get_course_content(course_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_course(cursor, claims, course_id):
+            return forbidden()
+
         cursor.execute("""
             SELECT s.section_id, s.section_title, s.section_order,
                    si.item_id, si.item_title, si.item_type, si.item_url
@@ -66,6 +71,9 @@ def create_section(course_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_course(cursor, claims, course_id):
+            return forbidden()
+
         cursor.execute("""
             INSERT INTO section (course_id, section_title, section_order)
             VALUES (%s, %s, %s)
@@ -74,7 +82,7 @@ def create_section(course_id):
         return jsonify({"message": "Section created", "section_id": cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()
@@ -87,7 +95,6 @@ def create_section(course_id):
 @jwt_required()
 def add_section_item(section_id):
     claims  = get_jwt()
-    user_id = claims["sub"]
 
     if claims.get("role") != "lecturer":
         return jsonify({"error": "Only lecturers can add content"}), 403
@@ -104,17 +111,18 @@ def add_section_item(section_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT lecturer_id FROM lecturer WHERE user_id = %s", (user_id,))
-        lecturer = cursor.fetchone()
-        if not lecturer:
+        lecturer_id = get_claim_int(claims, "subtype_id")
+        if lecturer_id is None:
             return jsonify({"error": "Lecturer record not found"}), 404
+        if not can_manage_section(cursor, claims, section_id):
+            return forbidden()
 
         cursor.execute("""
             INSERT INTO section_item (section_id, uploaded_by, item_title, item_type, item_url)
             VALUES (%s, %s, %s, %s, %s)
         """, (
             section_id,
-            lecturer["lecturer_id"],
+            lecturer_id,
             data["item_title"],
             data["item_type"],
             data.get("item_url")
@@ -123,7 +131,7 @@ def add_section_item(section_id):
         return jsonify({"message": "Item added", "item_id": cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()

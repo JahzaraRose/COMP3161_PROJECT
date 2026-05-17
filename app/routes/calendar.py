@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
+from app.authz import can_access_course, can_access_student_records, forbidden, get_claim_int, safe_error
 from app.db import get_db
 
 calendar_bp = Blueprint("calendar", __name__)
@@ -11,9 +12,13 @@ calendar_bp = Blueprint("calendar", __name__)
 @calendar_bp.route("/courses/<int:course_id>/events", methods=["GET"])
 @jwt_required()
 def get_course_events(course_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_course(cursor, claims, course_id):
+            return forbidden()
+
         cursor.execute("""
             SELECT event_id, event_title, event_description,
                    event_date, start_time, end_time, created_by
@@ -39,12 +44,24 @@ def get_course_events(course_id):
 @calendar_bp.route("/students/<int:student_id>/events", methods=["GET"])
 @jwt_required()
 def get_student_events(student_id):
+    claims = get_jwt()
     date = request.args.get("date")
 
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_student_records(cursor, claims, student_id):
+            return forbidden()
+
+        params = [student_id]
+        lecturer_scope = ""
+        lecturer_id = get_claim_int(claims, "subtype_id")
+        if claims.get("role") == "lecturer":
+            lecturer_scope = " AND c.lecturer_id = %s"
+            params.append(lecturer_id)
+
         if date:
+            params.append(date)
             cursor.execute("""
                 SELECT ce.event_id, ce.event_title, ce.event_description,
                        ce.event_date, ce.start_time, ce.end_time,
@@ -52,9 +69,11 @@ def get_student_events(student_id):
                 FROM calendar_event ce
                 JOIN course c     ON ce.course_id  = c.course_id
                 JOIN enrollment e ON c.course_id   = e.course_id
-                WHERE e.student_id = %s AND ce.event_date = %s
+                WHERE e.student_id = %s
+                """ + lecturer_scope + """
+                  AND ce.event_date = %s
                 ORDER BY ce.start_time
-            """, (student_id, date))
+            """, tuple(params))
         else:
             cursor.execute("""
                 SELECT ce.event_id, ce.event_title, ce.event_description,
@@ -64,8 +83,9 @@ def get_student_events(student_id):
                 JOIN course c     ON ce.course_id = c.course_id
                 JOIN enrollment e ON c.course_id  = e.course_id
                 WHERE e.student_id = %s
+                """ + lecturer_scope + """
                 ORDER BY ce.event_date, ce.start_time
-            """, (student_id,))
+            """, tuple(params))
 
         events = cursor.fetchall()
         for e in events:
@@ -100,6 +120,9 @@ def create_event(course_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if role == "lecturer" and not can_access_course(cursor, claims, course_id):
+            return forbidden()
+
         cursor.execute("""
             INSERT INTO calendar_event
             (course_id, created_by, event_title, event_description, event_date, start_time, end_time)
@@ -117,7 +140,7 @@ def create_event(course_id):
         return jsonify({"message": "Event created", "event_id": cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()

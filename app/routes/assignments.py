@@ -1,5 +1,15 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
+from app.authz import (
+    can_access_assignment,
+    can_access_course,
+    can_access_student_records,
+    can_access_submission,
+    duplicate_key_error,
+    forbidden,
+    get_claim_int,
+    safe_error,
+)
 from app.db import get_db
 
 assignments_bp = Blueprint("assignments", __name__)
@@ -12,7 +22,6 @@ assignments_bp = Blueprint("assignments", __name__)
 @jwt_required()
 def create_assignment(course_id):
     claims  = get_jwt()
-    user_id = claims["sub"]
 
     if claims.get("role") != "lecturer":
         return jsonify({"error": "Only lecturers can create assignments"}), 403
@@ -24,17 +33,18 @@ def create_assignment(course_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("SELECT lecturer_id FROM lecturer WHERE user_id = %s", (user_id,))
-        lecturer = cursor.fetchone()
-        if not lecturer:
+        lecturer_id = get_claim_int(claims, "subtype_id")
+        if lecturer_id is None:
             return jsonify({"error": "Lecturer not found"}), 404
+        if not can_access_course(cursor, claims, course_id):
+            return forbidden()
 
         cursor.execute("""
             INSERT INTO assignment (course_id, created_by, assignment_title, description, due_date, max_grade)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (
             course_id,
-            lecturer["lecturer_id"],
+            lecturer_id,
             data["assignment_title"],
             data.get("description"),
             data.get("due_date"),
@@ -44,7 +54,7 @@ def create_assignment(course_id):
         return jsonify({"message": "Assignment created", "assignment_id": cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()
@@ -56,9 +66,13 @@ def create_assignment(course_id):
 @assignments_bp.route("/courses/<int:course_id>/assignments", methods=["GET"])
 @jwt_required()
 def get_course_assignments(course_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_course(cursor, claims, course_id):
+            return forbidden()
+
         cursor.execute("""
             SELECT a.assignment_id, a.assignment_title, a.description,
                    a.due_date, a.max_grade,
@@ -87,7 +101,6 @@ def get_course_assignments(course_id):
 @jwt_required()
 def submit_assignment(assignment_id):
     claims  = get_jwt()
-    user_id = claims["sub"]
 
     if claims.get("role") != "student":
         return jsonify({"error": "Only students can submit assignments"}), 403
@@ -97,13 +110,9 @@ def submit_assignment(assignment_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Get student record
-        cursor.execute("SELECT student_id FROM student WHERE user_id = %s", (user_id,))
-        student = cursor.fetchone()
-        if not student:
+        student_id = get_claim_int(claims, "subtype_id")
+        if student_id is None:
             return jsonify({"error": "Student not found"}), 404
-
-        student_id = student["student_id"]
 
         # Get course_id for this assignment
         cursor.execute("SELECT course_id FROM assignment WHERE assignment_id = %s", (assignment_id,))
@@ -128,7 +137,12 @@ def submit_assignment(assignment_id):
         return jsonify({"message": "Assignment submitted", "submission_id": cursor.lastrowid}), 201
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        duplicate_response = duplicate_key_error(e, {
+            "uq_submission": "Assignment already submitted",
+        })
+        if duplicate_response:
+            return duplicate_response
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()
@@ -141,8 +155,8 @@ def submit_assignment(assignment_id):
 @jwt_required()
 def grade_submission(submission_id):
     claims = get_jwt()
-    if claims.get("role") != "lecturer":
-        return jsonify({"error": "Only lecturers can grade submissions"}), 403
+    if claims.get("role") not in ("lecturer", "admin"):
+        return jsonify({"error": "Only lecturers or admins can grade submissions"}), 403
 
     data = request.get_json()
     if "grade" not in data:
@@ -151,6 +165,9 @@ def grade_submission(submission_id):
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_submission(cursor, claims, submission_id):
+            return forbidden()
+
         cursor.execute("""
             UPDATE submission SET grade = %s WHERE submission_id = %s
         """, (data["grade"], submission_id))
@@ -158,7 +175,7 @@ def grade_submission(submission_id):
         return jsonify({"message": "Grade submitted successfully"}), 200
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": str(e)}), 400
+        return safe_error(e)
     finally:
         cursor.close()
         conn.close()
@@ -171,12 +188,15 @@ def grade_submission(submission_id):
 @jwt_required()
 def get_submissions(assignment_id):
     claims = get_jwt()
-    if claims.get("role") != "lecturer":
-        return jsonify({"error": "Only lecturers can view all submissions"}), 403
+    if claims.get("role") not in ("lecturer", "admin"):
+        return jsonify({"error": "Only lecturers or admins can view submissions"}), 403
 
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
+        if not can_access_assignment(cursor, claims, assignment_id):
+            return forbidden()
+
         cursor.execute("""
             SELECT sub.submission_id, sub.submission_text, sub.submitted_at,
                    sub.grade, s.student_id, u.first_name, u.last_name, u.email
@@ -201,19 +221,32 @@ def get_submissions(assignment_id):
 @assignments_bp.route("/students/<int:student_id>/submissions", methods=["GET"])
 @jwt_required()
 def get_student_submissions(student_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
+        if not can_access_student_records(cursor, claims, student_id):
+            return forbidden()
+
+        params = [student_id]
+        course_scope = ""
+        lecturer_id = get_claim_int(claims, "subtype_id")
+        if claims.get("role") == "lecturer":
+            course_scope = " AND c.lecturer_id = %s"
+            params.append(lecturer_id)
+
+        cursor.execute(f"""
             SELECT sub.submission_id, sub.assignment_id, a.assignment_title,
                    sub.submission_text, sub.submitted_at,
                    sub.grade, a.max_grade,
                    ROUND((sub.grade / a.max_grade) * 100, 2) AS percentage
             FROM submission sub
             JOIN assignment a ON sub.assignment_id = a.assignment_id
+            JOIN course c ON a.course_id = c.course_id
             WHERE sub.student_id = %s
+            {course_scope}
             ORDER BY sub.submitted_at DESC
-        """, (student_id,))
+        """, tuple(params))
         submissions = cursor.fetchall()
         for s in submissions:
             s["submitted_at"] = str(s["submitted_at"])
@@ -229,15 +262,28 @@ def get_student_submissions(student_id):
 @assignments_bp.route("/students/<int:student_id>/average", methods=["GET"])
 @jwt_required()
 def get_student_average(student_id):
+    claims = get_jwt()
     conn   = get_db()
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute("""
+        if not can_access_student_records(cursor, claims, student_id):
+            return forbidden()
+
+        params = [student_id]
+        course_scope = ""
+        lecturer_id = get_claim_int(claims, "subtype_id")
+        if claims.get("role") == "lecturer":
+            course_scope = " AND c.lecturer_id = %s"
+            params.append(lecturer_id)
+
+        cursor.execute(f"""
             SELECT ROUND(AVG((sub.grade / a.max_grade) * 100), 2) AS average_percentage
             FROM submission sub
             JOIN assignment a ON sub.assignment_id = a.assignment_id
+            JOIN course c ON a.course_id = c.course_id
             WHERE sub.student_id = %s AND sub.grade IS NOT NULL
-        """, (student_id,))
+            {course_scope}
+        """, tuple(params))
         result = cursor.fetchone()
         return jsonify(result), 200
     finally:

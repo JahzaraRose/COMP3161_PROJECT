@@ -1,4 +1,15 @@
-const BASE = "/api";
+function getApiBase() {
+  const raw = import.meta.env.VITE_API_BASE_URL || "/api";
+  const base = raw.trim().replace(/\/+$/, "");
+
+  if (base.startsWith("/") || /^https?:\/\//i.test(base)) {
+    return base;
+  }
+
+  return `http://${base}`;
+}
+
+const BASE = getApiBase();
 
 function getToken() {
   return localStorage.getItem("token");
@@ -9,15 +20,31 @@ async function req(method, path, body) {
   const token = getToken();
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  const res = await fetch(BASE + path, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(BASE + path, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new Error("Could not connect to the API. Check VITE_API_BASE_URL and make sure the backend is running.");
+  }
 
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
+}
+
+function queryString(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      query.set(key, value);
+    }
+  });
+  const qs = query.toString();
+  return qs ? `?${qs}` : "";
 }
 
 export const api = {
@@ -26,7 +53,11 @@ export const api = {
   register: (b) => req("POST", "/register", b),
 
   // Courses
-  getCourses:          ()    => req("GET",  "/courses"),
+  getCoursesPage:      (params) => req("GET", `/courses${queryString(params)}`),
+  getCourses:          async (params) => {
+    const data = await req("GET", `/courses${queryString(params)}`);
+    return Array.isArray(data) ? data : data.courses;
+  },
   createCourse:        (b)   => req("POST", "/courses", b),
   getStudentCourses:   (sid) => req("GET",  `/courses/student/${sid}`),
   getLecturerCourses:  (lid) => req("GET",  `/courses/lecturer/${lid}`),

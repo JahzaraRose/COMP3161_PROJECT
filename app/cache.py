@@ -10,7 +10,9 @@ def _get_redis():
     if _client is not None:
         return _client
     try:
-        url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        url = os.getenv("REDIS_URL")
+        if not url:
+            return None
         _client = redis.Redis.from_url(url, decode_responses=True, socket_connect_timeout=1)
         _client.ping()
         return _client
