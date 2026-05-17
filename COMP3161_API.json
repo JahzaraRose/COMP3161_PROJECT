@@ -1,0 +1,497 @@
+{
+  "info": {
+    "_postman_id": "fb6b5664-4755-45cd-ac19-b55dbc8cf426",
+    "name": "COMP3161 API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{admin_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "token",          "value": "" },
+    { "key": "admin_token",    "value": "" },
+    { "key": "lecturer_token", "value": "" },
+    { "key": "student_token",  "value": "" },
+    { "key": "base_url",       "value": "http://127.0.0.1:5000/api" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testadmin1\",\n  \"password\": \"password123\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"Admin\",\n  \"email\": \"testadmin1@school.edu\",\n  \"role\": \"admin\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/register", "host": ["{{base_url}}"], "path": ["register"] }
+          }
+        },
+        {
+          "name": "Register Lecturer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testlecturer1\",\n  \"password\": \"password123\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"Lecturer\",\n  \"email\": \"testlecturer1@school.edu\",\n  \"role\": \"lecturer\",\n  \"department\": \"Computer Science\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/register", "host": ["{{base_url}}"], "path": ["register"] }
+          }
+        },
+        {
+          "name": "Register Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"teststudent1\",\n  \"password\": \"password123\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"Student\",\n  \"email\": \"teststudent1@school.edu\",\n  \"role\": \"student\",\n  \"major\": \"Computer Science\",\n  \"year_level\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/register", "host": ["{{base_url}}"], "path": ["register"] }
+          }
+        },
+        {
+          "name": "Login Admin",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testadmin1\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Login Lecturer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"testlecturer1\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Login Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"teststudent1\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Courses",
+      "item": [
+        {
+          "name": "Create Course (Admin)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"course_name\": \"Test Course\",\n  \"course_code\": \"TST999\",\n  \"description\": \"A test course\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/courses", "host": ["{{base_url}}"], "path": ["courses"] }
+          }
+        },
+        {
+          "name": "Get All Courses",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses", "host": ["{{base_url}}"], "path": ["courses"] }
+          }
+        },
+        {
+          "name": "Get Courses by Student",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses/student/1", "host": ["{{base_url}}"], "path": ["courses", "student", "1"] }
+          }
+        },
+        {
+          "name": "Get Courses by Lecturer",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{lecturer_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses/lecturer/1", "host": ["{{base_url}}"], "path": ["courses", "lecturer", "1"] }
+          }
+        },
+        {
+          "name": "Get Course Members",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses/1/members", "host": ["{{base_url}}"], "path": ["courses", "1", "members"] }
+          }
+        },
+        {
+          "name": "Assign Lecturer to Course (Admin)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lecturer_id\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/courses/1/assign-lecturer", "host": ["{{base_url}}"], "path": ["courses", "1", "assign-lecturer"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Enrollment",
+      "item": [
+        {
+          "name": "Enroll in Course (Student)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses/1/enroll", "host": ["{{base_url}}"], "path": ["courses", "1", "enroll"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Course Content",
+      "item": [
+        {
+          "name": "Get Course Content",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses/1/content", "host": ["{{base_url}}"], "path": ["courses", "1", "content"] }
+          }
+        },
+        {
+          "name": "Create Section (Lecturer)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{lecturer_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"section_title\": \"Week 1 - Introduction\",\n  \"section_order\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/courses/1/sections", "host": ["{{base_url}}"], "path": ["courses", "1", "sections"] }
+          }
+        },
+        {
+          "name": "Add Section Item (Lecturer)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{lecturer_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"item_title\": \"Lecture Slides Week 1\",\n  \"item_type\": \"slide\",\n  \"item_url\": \"https://school.edu/slides/week1.pdf\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/sections/1/items", "host": ["{{base_url}}"], "path": ["sections", "1", "items"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assignments",
+      "item": [
+        {
+          "name": "Create Assignment (Lecturer)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{lecturer_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignment_title\": \"Assignment 1\",\n  \"description\": \"Complete all tasks\",\n  \"due_date\": \"2026-05-01\",\n  \"max_grade\": 100\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/courses/1/assignments", "host": ["{{base_url}}"], "path": ["courses", "1", "assignments"] }
+          }
+        },
+        {
+          "name": "Get Course Assignments",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses/1/assignments", "host": ["{{base_url}}"], "path": ["courses", "1", "assignments"] }
+          }
+        },
+        {
+          "name": "Submit Assignment (Student)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"submission_text\": \"This is my answer to the assignment.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/assignments/1/submit", "host": ["{{base_url}}"], "path": ["assignments", "1", "submit"] }
+          }
+        },
+        {
+          "name": "Grade Submission (Lecturer)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{lecturer_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grade\": 85\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/submissions/1/grade", "host": ["{{base_url}}"], "path": ["submissions", "1", "grade"] }
+          }
+        },
+        {
+          "name": "Get Assignment Submissions (Lecturer)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{lecturer_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/assignments/1/submissions", "host": ["{{base_url}}"], "path": ["assignments", "1", "submissions"] }
+          }
+        },
+        {
+          "name": "Get Student Submissions",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/students/1/submissions", "host": ["{{base_url}}"], "path": ["students", "1", "submissions"] }
+          }
+        },
+        {
+          "name": "Get Student Average",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/students/1/average", "host": ["{{base_url}}"], "path": ["students", "1", "average"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Calendar Events",
+      "item": [
+        {
+          "name": "Create Calendar Event (Lecturer)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{lecturer_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_title\": \"Midterm Exam\",\n  \"event_description\": \"Covers weeks 1-6\",\n  \"event_date\": \"2026-05-01\",\n  \"start_time\": \"09:00:00\",\n  \"end_time\": \"11:00:00\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/courses/1/events", "host": ["{{base_url}}"], "path": ["courses", "1", "events"] }
+          }
+        },
+        {
+          "name": "Get Course Calendar Events",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses/1/events", "host": ["{{base_url}}"], "path": ["courses", "1", "events"] }
+          }
+        },
+        {
+          "name": "Get Student Events by Date",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/students/1/events?date=2026-05-01",
+              "host": ["{{base_url}}"],
+              "path": ["students", "1", "events"],
+              "query": [{ "key": "date", "value": "2026-05-01" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Forums & Discussions",
+      "item": [
+        {
+          "name": "Create Forum (Lecturer)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{lecturer_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"forum_title\": \"General Discussion\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/courses/1/forums", "host": ["{{base_url}}"], "path": ["courses", "1", "forums"] }
+          }
+        },
+        {
+          "name": "Get Course Forums",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/courses/1/forums", "host": ["{{base_url}}"], "path": ["courses", "1", "forums"] }
+          }
+        },
+        {
+          "name": "Create Thread (Student)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"thread_title\": \"Question about assignment\",\n  \"starting_post\": \"Can someone explain the requirements?\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/forums/1/threads", "host": ["{{base_url}}"], "path": ["forums", "1", "threads"] }
+          }
+        },
+        {
+          "name": "Get Forum Threads",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/forums/1/threads", "host": ["{{base_url}}"], "path": ["forums", "1", "threads"] }
+          }
+        },
+        {
+          "name": "Create Reply (Student)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reply_text\": \"Great question! I was wondering the same.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/threads/1/replies", "host": ["{{base_url}}"], "path": ["threads", "1", "replies"] }
+          }
+        },
+        {
+          "name": "Create Nested Reply (Student)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{student_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reply_text\": \"I agree with the above reply!\",\n  \"parent_reply_id\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{base_url}}/threads/1/replies", "host": ["{{base_url}}"], "path": ["threads", "1", "replies"] }
+          }
+        },
+        {
+          "name": "Get Thread Replies",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/threads/1/replies", "host": ["{{base_url}}"], "path": ["threads", "1", "replies"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports (Admin Only)",
+      "item": [
+        {
+          "name": "Courses with 50+ Students",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/reports/courses-50-plus", "host": ["{{base_url}}"], "path": ["reports", "courses-50-plus"] }
+          }
+        },
+        {
+          "name": "Students with 5+ Courses",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/reports/students-5-plus-courses", "host": ["{{base_url}}"], "path": ["reports", "students-5-plus-courses"] }
+          }
+        },
+        {
+          "name": "Lecturers with 3+ Courses",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/reports/lecturers-3-plus-courses", "host": ["{{base_url}}"], "path": ["reports", "lecturers-3-plus-courses"] }
+          }
+        },
+        {
+          "name": "Top 10 Most Enrolled Courses",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/reports/top-10-enrolled-courses", "host": ["{{base_url}}"], "path": ["reports", "top-10-enrolled-courses"] }
+          }
+        },
+        {
+          "name": "Top 10 Students by Average",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{admin_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/reports/top-10-students", "host": ["{{base_url}}"], "path": ["reports", "top-10-students"] }
+          }
+        }
+      ]
+    }
+  ]
+}
