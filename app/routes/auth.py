@@ -106,7 +106,12 @@ def login():
         if not user:
             return jsonify({"error": "Invalid credentials"}), 401
 
-        if not bcrypt.checkpw(data["password"].encode(), user["password_hash"].encode()):
+        try:
+            password_matches = bcrypt.checkpw(data["password"].encode(), user["password_hash"].encode())
+        except ValueError:
+            password_matches = False
+
+        if not password_matches:
             return jsonify({"error": "Invalid credentials"}), 401
 
         # Resolve subtype id so the frontend can call role-specific endpoints

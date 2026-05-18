@@ -44,18 +44,23 @@ CREATE PROCEDURE insert_lecturers()
 BEGIN
     DECLARE i INT DEFAULT 1;
     DECLARE dept VARCHAR(100);
+    DECLARE lname VARCHAR(50);
     WHILE i <= 100 DO
         SET dept = ELT((i % 10) + 1,
             'Computer Science', 'Mathematics', 'Physics', 'Chemistry',
             'Biology', 'Engineering', 'Business', 'Economics',
             'Psychology', 'Literature'
         );
+        SET lname = ELT((i % 20) + 1,
+            'Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','Davis','Wilson','Moore',
+            'Taylor','Anderson','Thomas','Jackson','White','Harris','Martin','Thompson','Young','King'
+        );
         INSERT INTO user (username, password_hash, first_name, last_name, email, role)
         VALUES (
             CONCAT('lecturer', i),
             '$2b$12$lecturerhashplaceholder',
             ELT((i % 10) + 1, 'James','Maria','John','Sarah','David','Emma','Michael','Lisa','Robert','Anna'),
-            CONCAT('Lecturer', i),
+            lname,
             CONCAT('lecturer', i, '@school.edu'),
             'lecturer'
         );
@@ -125,6 +130,7 @@ BEGIN
     DECLARE cname VARCHAR(150);
     DECLARE prefix VARCHAR(50);
     DECLARE subject VARCHAR(50);
+    DECLARE lec_offset INT;
 
     WHILE i <= 200 DO
         SET prefix = ELT((i % 10) + 1,
@@ -141,11 +147,20 @@ BEGIN
         );
         SET cname = CONCAT(prefix, ' ', subject);
 
-        -- Assign lecturer round-robin (1 to 100, max 5 courses each = 500 slots)
+        -- Assign lecturers so some teach 3+ courses, while every lecturer stays within 1-5 courses.
+        -- Lecturers 1-20 teach 3 courses, 21-80 teach 2, and 81-100 teach 1.
+        IF i <= 60 THEN
+            SET lec_offset = ((i - 1) % 20);
+        ELSEIF i <= 180 THEN
+            SET lec_offset = 20 + ((i - 61) % 60);
+        ELSE
+            SET lec_offset = 80 + ((i - 181) % 20);
+        END IF;
+
         SELECT lecturer_id INTO lec_id
         FROM lecturer
         ORDER BY lecturer_id
-        LIMIT 1 OFFSET ((i - 1) % 100);
+        LIMIT 1 OFFSET lec_offset;
 
         -- Assign admin round-robin
         SELECT admin_id INTO adm_id
@@ -552,19 +567,31 @@ GROUP BY student_id
 HAVING COUNT(*) > 6;
 
 -- Should return NO rows (all courses have at least 10 students)
-SELECT course_id, COUNT(*) AS student_count
-FROM enrollment
-GROUP BY course_id
-HAVING COUNT(*) < 10;
+SELECT c.course_id, c.course_code, COUNT(e.student_id) AS student_count
+FROM course c
+LEFT JOIN enrollment e ON c.course_id = e.course_id
+GROUP BY c.course_id, c.course_code
+HAVING COUNT(e.student_id) < 10;
 
 -- Should return NO rows (no lecturer teaches more than 5 courses)
 SELECT lecturer_id, COUNT(*) AS course_count
 FROM course
+WHERE lecturer_id IS NOT NULL
 GROUP BY lecturer_id
 HAVING COUNT(*) > 5;
 
+-- Should return NO rows (every lecturer teaches at least 1 course)
+SELECT l.lecturer_id
+FROM lecturer l
+LEFT JOIN course c ON l.lecturer_id = c.lecturer_id
+WHERE c.course_id IS NULL;
+
 -- Should return NO rows (all students in at least 3 courses)
-SELECT student_id, COUNT(*) AS course_count
-FROM enrollment
-GROUP BY student_id
-HAVING COUNT(*) < 3;
+SELECT s.student_id, COUNT(e.course_id) AS course_count
+FROM student s
+LEFT JOIN enrollment e ON s.student_id = e.student_id
+GROUP BY s.student_id
+HAVING COUNT(e.course_id) < 3;
+
+-- Should return rows (report data for lecturers teaching 3+ courses)
+SELECT * FROM view_lecturers_3_plus_courses;

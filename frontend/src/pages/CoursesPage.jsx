@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 export default function CoursesPage() {
   const { user }               = useAuth();
   const [courses, setCourses]  = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, per_page: 20, total: 0, total_pages: 1 });
   const [search, setSearch]    = useState("");
   const [loading, setLoading]  = useState(true);
   const [enrolling, setEnrolling] = useState(null);
@@ -16,8 +17,24 @@ export default function CoursesPage() {
   const [newCourse, setNewCourse]   = useState({ course_name: "", course_code: "", description: "" });
   const [creating, setCreating]     = useState(false);
 
+  const loadCourses = async (page = 1) => {
+    setLoading(true);
+    try {
+      const data = await api.getCoursesPage({ page, per_page: pagination.per_page });
+      if (Array.isArray(data)) {
+        setCourses(data);
+        setPagination({ page: 1, per_page: data.length, total: data.length, total_pages: 1 });
+      } else {
+        setCourses(data.courses || []);
+        setPagination(data.pagination || { page, per_page: 20, total: data.courses?.length || 0, total_pages: 1 });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    api.getCourses().then(setCourses).finally(() => setLoading(false));
+    loadCourses(1);
   }, []);
 
   const handleEnroll = async (courseId) => {
@@ -38,8 +55,7 @@ export default function CoursesPage() {
     setCreating(true);
     try {
       await api.createCourse(newCourse);
-      const fresh = await api.getCourses();
-      setCourses(fresh);
+      await loadCourses(1);
       setShowCreate(false);
       setNewCourse({ course_name: "", course_code: "", description: "" });
     } catch (err) {
@@ -111,7 +127,31 @@ export default function CoursesPage() {
         />
       </div>
 
-      <p className="result-count">{filtered.length} courses found</p>
+      <div className="result-row">
+        <p className="result-count">
+          Showing {filtered.length} of {pagination.total || filtered.length} courses
+          {search && " on this page"}
+        </p>
+        <div className="pagination-controls">
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => loadCourses(pagination.page - 1)}
+            disabled={pagination.page <= 1}
+          >
+            Previous
+          </button>
+          <span className="pagination-status">
+            Page {pagination.page} of {pagination.total_pages}
+          </span>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => loadCourses(pagination.page + 1)}
+            disabled={pagination.page >= pagination.total_pages}
+          >
+            Next
+          </button>
+        </div>
+      </div>
 
       <div className="course-grid">
         {filtered.map((c) => (

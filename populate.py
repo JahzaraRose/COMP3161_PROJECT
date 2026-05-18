@@ -96,11 +96,12 @@ lecturer_ids = []
 
 for i in range(1, 101):
     fname = first_names[i % len(first_names)]
+    lname = last_names[i % len(last_names)]
     dept  = departments[i % len(departments)]
     cursor.execute("""
         INSERT INTO user (username, password_hash, first_name, last_name, email, role)
         VALUES (%s, %s, %s, %s, %s, 'lecturer')
-    """, (f'lecturer{i}', '$2b$12$lecturerhash', fname, f'Lecturer{i}', f'lecturer{i}@school.edu'))
+    """, (f'lecturer{i}', '$2b$12$lecturerhash', fname, lname, f'lecturer{i}@school.edu'))
     uid = cursor.lastrowid
     cursor.execute("INSERT INTO lecturer (user_id, department) VALUES (%s, %s)", (uid, dept))
     lecturer_ids.append(cursor.lastrowid)
@@ -169,11 +170,16 @@ print(f"  ✓ {len(student_ids)} students inserted")
 # ============================================================
 print("\n[4/13] Inserting 200 courses...")
 course_ids = []
+lecturer_course_plan = (
+    lecturer_ids[:20] * 3 +
+    lecturer_ids[20:80] * 2 +
+    lecturer_ids[80:100]
+)
 
 for i in range(1, 201):
     prefix  = course_prefixes[i % len(course_prefixes)]
     subject = course_subjects[i % len(course_subjects)]
-    lec_id  = lecturer_ids[i % len(lecturer_ids)]
+    lec_id  = lecturer_course_plan[i - 1]
     adm_id  = admin_ids[i % len(admin_ids)]
     cursor.execute("""
         INSERT INTO course (course_code, course_name, description, lecturer_id, created_by)
